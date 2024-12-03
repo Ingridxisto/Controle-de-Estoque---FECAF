@@ -1,4 +1,4 @@
-# Projeto acadêmico realizado com o objetivo de criar uma aplicação de controle o estoque de uma empresa.  
+# Projeto acadêmico realizado com o objetivo de criar uma aplicação de controle de estoque de uma empresa.  
 O projeto consiste em:
 - Controle de entrada e saída de produtos;
 - Cadastro de produtos, bem como a edição ou exclusão (somente administradores);
