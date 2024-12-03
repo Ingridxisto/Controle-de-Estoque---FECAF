@@ -10,6 +10,11 @@ class Produto(db.Model):
     quantidade = db.Column(db.Integer, nullable=False)
     quantidade_minima = db.Column(db.Integer, nullable=False)
     descricao = db.Column(db.Text, nullable=True)
+    movimentacoes = db.relationship(
+        'MovimentacaoEstoque',
+        cascade='all, delete-orphan',
+        backref='produto_relacionado'
+    )
 
     def __init__(self, nome, valor, quantidade, quantidade_minima, descricao):
         self.nome = nome

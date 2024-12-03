@@ -1,8 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
-from models_adm import Administrador
 from models_usuario import Usuario
 from models_produto import Produto
+from models_estoque import MovimentacaoEstoque
 from cadastro_usuario import cadastro_bp
 from db import db
 import hashlib
@@ -26,7 +26,7 @@ def hash(txt):
 
 
 def senha_valida(senha):
-    return bool(re.fullmatch(r"\d+", senha))
+    return bool(re.fullmatch(r"[A-Za-z0-9@#$%^&+=]{6,}", senha))
 
 
 def get_produtos_baixo_estoque():
@@ -35,9 +35,7 @@ def get_produtos_baixo_estoque():
 
 @lm.user_loader
 def user_loader(id):
-    user = Administrador.query.get(int(id))
-    if user is None:
-        user = Usuario.query.get(int(id))
+    user = Usuario.query.get(int(id))
     return user
 
 
@@ -58,24 +56,19 @@ def login():
     if request.method == 'POST':
         nome = request.form['nomeForm']
         senha = request.form['senhaForm']
+        perfil_selecionado = request.form['perfil']
 
-        user = db.session.query(Administrador).filter_by(nome=nome).first()
-
-        if not user:
-            user = db.session.query(Usuario).filter_by(nome=nome).first()
+        user = Usuario.query.filter_by(nome=nome).first()
 
         if user and user.verificar_senha(senha):
-            if user.perfil == 'Comum' and request.form['perfil'] != 'Comum':
-                flash('Perfil inválido! Você não pode alterar seu perfil.', 'danger')
+            if user.perfil != perfil_selecionado:
+                flash(f'Perfil incorreto! Você está registrado como "{user.perfil}".', 'danger')
                 return redirect(url_for('login'))
 
             login_user(user)
+            return redirect(url_for('home'))
 
-            if user.perfil == 'Administrador':
-                return redirect(url_for('home'))
-            elif user.perfil == 'Comum':
-                return redirect(url_for('ver_estoque'))
-
+        flash('Nome ou senha incorreto!', 'danger')
         return render_template('login.html', error='Nome ou senha incorreto!')
 
     return render_template('login.html')
@@ -101,27 +94,16 @@ def cadastrar_usuario():
             flash("A senha deve conter apenas números.")
             return redirect(url_for("cadastro.cadastrar_usuario"))
 
-        if perfil == 'Administrador':
-            if Administrador.query.filter_by(nome=nome).first():
-                flash('Administrador com esse nome já existe!', 'error')
-                return render_template('cadastrar_usuario.html')
+        novo_usuario = Usuario(nome=nome, perfil=perfil)
 
-            novo_usuario = Administrador(nome=nome, perfil=perfil)
-            novo_usuario.set_senha(senha_hash)
-
-        elif perfil == 'Comum':
-            if Usuario.query.filter_by(nome=nome).first():
-                flash('Usuário com esse nome já existe!', 'error')
-                return render_template('cadastrar_usuario.html')
-
-            novo_usuario = Usuario(nome=nome, perfil=perfil)
-            novo_usuario.set_senha(senha_hash)
-        else:
-            flash('Perfil inválido!', 'danger')
+        if not novo_usuario.validar_perfil():
+            flash('Perfil inválido! O perfil deve ser "Administrador" ou "Comum".', 'danger')
             return render_template('cadastrar_usuario.html')
+        novo_usuario.set_senha(senha_hash)
 
         db.session.add(novo_usuario)
         db.session.commit()
+
         flash('Usuário cadastrado com sucesso!', 'success')
         return redirect(url_for('cadastro.cadastrar_usuario'))
 
@@ -149,7 +131,18 @@ def cadastrar_produto():
         db.session.add(novo_produto)
         db.session.commit()
 
+        movimentacao = MovimentacaoEstoque(
+            produto_id=novo_produto.id,
+            quantidade=quantidade,
+            tipo='entrada',
+            usuario_id=current_user.id
+        )
+        db.session.add(movimentacao)
+        db.session.commit()
+
         flash('Produto cadastrado com sucesso!', 'success')
+        return redirect(url_for('ver_estoque'))
+
     return render_template('cadastrar_produto.html')
 
 
@@ -161,6 +154,51 @@ def ver_estoque():
     is_admin = current_user.perfil == 'Administrador'
 
     return render_template('ver_estoque.html', produtos=produtos, is_admin=is_admin)
+
+
+@app.route('/movimentacao/<tipo>/<int:produto_id>', methods=['POST'])
+@login_required
+def movimentar_estoque(tipo, produto_id):
+    if current_user.perfil != 'Administrador':
+        flash('Acesso negado: apenas administradores podem realizar essa ação', 'danger')
+        return redirect(url_for('ver_estoque'))
+
+    produto = Produto.query.get(produto_id)
+    if not produto:
+        flash('Produto não encontrado!', 'error')
+        return redirect(url_for('ver_estoque'))
+
+    if tipo == 'entrada':
+        quantidade = int(request.form['quantidade'])
+        movimentacao = MovimentacaoEstoque(
+            produto_id=produto.id,
+            quantidade=quantidade,
+            tipo='entrada',
+            usuario_id=current_user.id
+        )
+
+        db.session.add(movimentacao)
+        produto.quantidade += quantidade
+        flash(f'Produto {produto.nome} adicionado ao estoque com sucesso!', 'success')
+
+    elif tipo == 'saida':
+        quantidade = int(request.form['quantidade'])
+        if produto.quantidade < quantidade:
+            flash('Estoque insuficiente!', 'danger')
+            return redirect(url_for('ver_estoque'))
+
+        movimentacao = MovimentacaoEstoque(
+            produto_id=produto.id,
+            quantidade=quantidade,
+            tipo='saida',
+            usuario_id=current_user.id
+        )
+        db.session.add(movimentacao)
+        produto.quantidade -= quantidade  # Atualiza a quantidade no estoque
+        flash(f'Uma unidade de {produto.nome} foi retirada do estoque!', 'success')
+
+    db.session.commit()
+    return redirect(url_for('ver_estoque'))
 
 
 @app.route('/editar_produto/<int:id>', methods=['GET', 'POST'])
@@ -178,7 +216,6 @@ def editar_produto(id):
         produto.nome = request.form['nomeForm']
         produto.descricao = request.form['descricaoForm']
         produto.valor = float(request.form['valorForm'])
-        produto.quantidade = int(request.form['quantidadeForm'])
         produto.quantidade_minima = int(request.form['quantidademinimaForm'])
 
         db.session.commit()
@@ -196,8 +233,14 @@ def excluir_produto(id):
         return redirect(url_for('ver_estoque'))
 
     produto = Produto.query.get_or_404(id)
+    movimentacoes = MovimentacaoEstoque.query.filter_by(produto_id=produto.id).all()
+    for movimentacao in movimentacoes:
+        db.session.delete(movimentacao)
+
     db.session.delete(produto)
     db.session.commit()
+
+    flash('Produto e suas movimentações associadas foram excluídos com sucesso', 'success')
     return redirect(url_for('ver_estoque'))
 
 

@@ -45,8 +45,21 @@
                     <td>{{ produto.quantidade_minima }}</td>
                     <td>
                         {% if is_admin %}
-                            <a href="{{ url_for('editar_produto', id=produto.id) }}" class="btn-editar">Editar</a>
-                            <a href="{{ url_for('excluir_produto', id=produto.id) }}" class="btn-excluir" onclick="return confirm('Tem certeza que deseja excluir este produto?')">Excluir</a>
+                            <div class="acoes">
+                                <div class="grupo1">
+                                <a href="{{ url_for('editar_produto', id=produto.id) }}" class="btn-editar">Editar</a>
+                                <a href="{{ url_for('excluir_produto', id=produto.id) }}" class="btn-excluir" onclick="return confirm('Tem certeza que deseja excluir este produto?')">Excluir</a>
+                            </div>
+                            <div class="grupo2">
+                                <form action="{{ url_for('movimentar_estoque', tipo='entrada', produto_id=produto.id) }}" method="POST" class="form-inline">
+                                    <input type="number" name="quantidade" required class="form-control" placeholder="Entrada">
+                                    <button type="submit" class="btn btn-success">Entrada</button>
+                                </form>
+                                <form action="{{ url_for('movimentar_estoque', tipo='saida', produto_id=produto.id) }}" method="POST" class="form-inline">
+                                    <input type="number" name="quantidade" required class="form-control" placeholder="Saída">
+                                    <button type="submit" class="btn btn-danger">Saída</button>
+                                </form>
+                            </div>
                         {% endif %}
                     </td>
                 </tr>
