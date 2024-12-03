@@ -10,5 +10,5 @@ O projeto consiste em:
 
 
 - MODELO CONCEITUAL
-  [Minha imagem]("C:\Users\Ingrid Xisto\OneDrive\Área de Trabalho\Modelo_Conceitual.brM")
+
   
