@@ -8,8 +8,8 @@ O projeto consiste em:
 - Conexão com o banco de dados;
 - Criação de tabelas (usuários, produtos e movimentação de estoque) no MySQL Workbench.
 
-
 - MODELO CONCEITUAL
-!['Imagem'](file:///C:/Users/Ingrid%20Xisto/Downloads/Design%20sem%20nome%20(3).png)
+![Design sem nome (3)](https://github.com/user-attachments/assets/de725c03-ddfb-4902-bbd0-3ad9cb45cbef)
+
 
   
